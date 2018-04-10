@@ -1,0 +1,23 @@
+version: "3"
+services:
+  postgresql:
+    image: postgres:10.3-alpine
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:4.0.9-alpine
+    volumes:
+      - ./data/redis:/data
+
+  api:
+    image: python:3.6-alpine3.7
+    # image: filex-fs
+    # build:
+    #   context: ./
+    #   dockerfile: ./Dockerfile
+    volumes:
+      - ./filex-fs:/app
+    ports:
+      - "8000:8000"
+    command: tail -f /dev/null
