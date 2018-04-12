@@ -113,6 +113,7 @@ class Explorer(object):
         for element in contents:
             if element['name'] == name:
                 print(f'#### WARNING: {name} already exists in this directory')
+                return
 
         add(self.ITEM_ID.format(directory_id), {
             'id': directory_id,
