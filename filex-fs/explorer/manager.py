@@ -81,6 +81,29 @@ class Explorer(object):
             add(self.DIRECTORY_LIST.format('/'), [])
         self.current_path = ['/']
 
+    @property
+    def LS(self):
+        contents = self.get_directory_contents()
+        for item in contents:
+            print(f'{item["i_type"]} {item["name"]}')
+
+    @property
+    def PWD(self):
+        print(self.get_directory_parents_string())
+
+    def CD(self, directory_name):
+        item = self.get_item_by_name(directory_name)
+        if item['i_type'] != 'd':
+            print(f'{directory_name} is not a directory')
+        else:
+            self.go_to_directory(item['id'])
+
+    def MKDIR(self, name):
+        self.add_directory(name)
+
+    def TOUCH(self, name):
+        self.add_file(uuid(), name, 1)
+
     def summary(self):
         return f"""
         Explorer for #{self.telegram_user_id}
@@ -102,6 +125,15 @@ class Explorer(object):
             elements.append(get(self.ITEM_ID.format(id)))
         add(self.DIRECTORY_LIST.format(directory_id), [e['id'] for e in elements])
         return elements
+
+    def get_item_by_name(self, name, directory_id=None):
+        if directory_id is None:
+            directory_id = self.get_current_directory_id()
+        contents = self.get_directory_contents(directory_id)
+        for item in contents:
+            if item['name'] == name:
+                return item
+        raise Exception  # ItemNotFoundException
 
     def get_directory_parents(self, directory_id=None):
         if directory_id is None:
