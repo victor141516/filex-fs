@@ -32,19 +32,35 @@ def uuid():
 
 
 class FsItem(object):
-    def __init__(self, id, name, directory_id, size, i_type):
+    def __init__(self, data):
         super(File, self).__init__()
-        self.id = id
-        self.name = name
-        self.directory_id = directory_id
-        self.size = size
-        self.i_type = i_type  # d (directory), f (file), l (link)
+        self.id = data['id']
+        self.name = data['name']
+        self.directory_id = data['directory_id']
+        self.size = data['size']
+        self.i_type = data['i_type']  # d (directory), f (file), l (link)
 
     def __iter__(self):
         iters = dict((x, y) for x, y in File.__dict__.items() if x[:2] != '__')
         iters.update(self.__dict__)
         for x, y in iters.items():
             yield x, y
+
+    def replace(self, data):
+        self.id = data['id']
+        self.name = data['name']
+        self.directory_id = data['directory_id']
+        self.size = data['size']
+        self.i_type = data['i_type']
+
+    def to_dict(self):
+        return {
+            'id': data['id'],
+            'name': data['name'],
+            'directory_id': data['directory_id'],
+            'size': data['size'],
+            'i_type': data['i_type']
+        }
 
 
 class Explorer(object):
