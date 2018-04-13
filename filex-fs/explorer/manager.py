@@ -1,15 +1,20 @@
 import json
+import logging
 import redis
 import uuid as uuid_pack
 
 cache = redis.StrictRedis(host='redis', port=6379, db=0, decode_responses=True)
 BASE_DIRECTORY_LIST = 'd_list-{}'
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+LOGGER = logging.getLogger('Explorer')
 
 
 def get(key):
     value = cache.get(key)
     if value is None:
-        print(f'#### WARNING: key: {key} doesn\'t exists')
+        LOGGER.warning(f'key: {key} doesn\'t exists')
         return None
     return json.loads(value)
 
@@ -78,8 +83,7 @@ class Explorer(object):
         elements = []
         for id in element_ids:
             element = get(self.ITEM_ID.format(id))
-            if element is not None:
-                elements.append(get(self.ITEM_ID.format(id)))
+            elements.append(get(self.ITEM_ID.format(id)))
         add(self.DIRECTORY_LIST.format(directory_id), [e['id'] for e in elements])
         return elements
 
@@ -112,44 +116,78 @@ class Explorer(object):
         contents = self.get_directory_contents(parent_directory_id)
         for element in contents:
             if element['name'] == name:
-                print(f'#### WARNING: {name} already exists in this directory')
+                LOGGER.warning(f'{name} already exists in this directory')
                 return
 
-        add(self.ITEM_ID.format(directory_id), {
+        dir_dict = {
             'id': directory_id,
             'name': name,
             'directory_id': parent_directory_id,
             'size': None,
             'i_type': 'd'
-        })
+        }
+        add(self.ITEM_ID.format(directory_id), dir_dict)
         add(self.DIRECTORY_LIST.format(directory_id), [])
         parent_list = get(self.DIRECTORY_LIST.format(parent_directory_id))
         add(self.DIRECTORY_LIST.format(parent_directory_id), parent_list + [directory_id])
         if parent_directory_id == self.get_current_directory_id():  # So that the directory appears
             self.go_to_directory(parent_directory_id)
+        return dir_dict
 
     def add_file(self, file_id, name, size, directory_id=None):
         if directory_id is None:
             directory_id = self.get_current_directory_id()
-        add(self.ITEM_ID.format(file_id), {
+
+        contents = self.get_directory_contents(directory_id)
+        for element in contents:
+            if element['name'] == name:
+                LOGGER.warning(f'{name} already exists in this directory')
+                return
+
+        file_dict = {
             'id': file_id,
             'name': name,
             'directory_id': directory_id,
             'size': size,
             'i_type': 'f'
-        })
+        }
+        add(self.ITEM_ID.format(file_id), file_dict)
         directory_list = get(self.DIRECTORY_LIST.format(directory_id))
         add(self.DIRECTORY_LIST.format(directory_id), directory_list + [file_id])
         if directory_id == self.get_current_directory_id():  # So that the file appears
             self.go_to_directory(directory_id)
+        return file_dict
 
-    def delete_item(self, item_id):
+    def delete_item(self, item_id, is_recursed=False):
         item = get(self.ITEM_ID.format(item_id))
-        if item is None:
-            return
+        LOGGER.debug(f' Delete {item_id} = {item}')
 
-        parent_directory_id = item['directory_id']
-        delete(self.ITEM_ID.format(item_id))
-        parent_elements_ids = get(self.DIRECTORY_LIST.format(parent_directory_id))
-        parent_elements_ids.remove(item_id)
-        add(self.DIRECTORY_LIST.format(parent_directory_id), parent_elements_ids)
+        if item['i_type'] == 'd':
+            LOGGER.debug(f' {item["name"]} is directory')
+            item_ids = get(self.DIRECTORY_LIST.format(item_id))
+            LOGGER.debug(f' {item["name"]} contents {item_ids}')
+            for each in item_ids:
+                element = get(self.ITEM_ID.format(each))
+                LOGGER.debug(f'     {each} = {element}')
+                if element['i_type'] == 'd':
+                    LOGGER.debug(f'     {each} is directory, recursion...')
+                    self.delete_item(each, True)
+                    LOGGER.debug(f'     {each} recursion end !!!')
+                    delete(self.DIRECTORY_LIST.format(each))
+                    LOGGER.debug(f'     {each} dir delete list')
+                delete(self.ITEM_ID.format(each))
+                LOGGER.debug(f'     {each} delete item')
+            delete(self.DIRECTORY_LIST.format(item['id']))
+
+        if not is_recursed:
+            LOGGER.debug(f'     No more recurion !!!')
+            parent_directory_id = item['directory_id']
+            LOGGER.debug(f'     Parent directory_id = {parent_directory_id}')
+            delete(self.ITEM_ID.format(item_id))
+            LOGGER.debug(f'     Item deleted')
+            parent_elements_ids = get(self.DIRECTORY_LIST.format(parent_directory_id))
+            LOGGER.debug(f'     Parent content before = {parent_elements_ids}')
+            parent_elements_ids.remove(item_id)
+            LOGGER.debug(f'     Parent content after = {parent_elements_ids}')
+            add(self.DIRECTORY_LIST.format(parent_directory_id), parent_elements_ids)
+            LOGGER.debug(f'     Parent content stored')
