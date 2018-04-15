@@ -16,11 +16,18 @@ def get(key):
     if value is None:
         LOGGER.warning(f'key: {key} doesn\'t exists')
         return None
-    return json.loads(value)
+    raw = json.loads(value)
+    if type(raw) is dict:
+        return FsItem(raw)
+    else:
+        return raw
 
 
 def add(key, value):
-    return cache.set(key, json.dumps(value))
+    if type(value) is FsItem:
+        return cache.set(key, value.to_json())
+    else:
+        return cache.set(key, json.dumps(value))
 
 
 def delete(key):
@@ -46,19 +53,6 @@ class FsItem(object):
         self.size = data.get('size')
         self.i_type = data.get('i_type')  # d (directory), f (file), l (link)
 
-    def __iter__(self):
-        iters = dict((x, y) for x, y in File.__dict__.items() if x[:2] != '__')
-        iters.update(self.__dict__)
-        for x, y in iters.items():
-            yield x, y
-
-    def replace(self, data):
-        self.id = data['id']
-        self.name = data['name']
-        self.directory_id = data['directory_id']
-        self.size = data['size']
-        self.i_type = data['i_type']
-
     def to_dict(self):
         return {
             'id': self.id,
@@ -82,13 +76,13 @@ class Explorer(object):
         self.ITEM_ID = f'{telegram_user_id}#' + '{}'
         self.telegram_user_id = telegram_user_id
         if get(self.ITEM_ID.format('/')) is None:
-            add(self.ITEM_ID.format('/'), {
+            add(self.ITEM_ID.format('/'), FsItem({
                 'id': '/',
                 'name': '',
                 'directory_id': None,
                 'size': None,
                 'i_type': 'd'
-            })
+            }))
         if get(self.DIRECTORY_LIST.format('/')) is None:
             add(self.DIRECTORY_LIST.format('/'), [])
         self.current_path = ['/']
@@ -96,7 +90,7 @@ class Explorer(object):
     def summary(self):
         return f"""
         Explorer for #{self.telegram_user_id}
-        Current directory: {self.get_current_directory_id()} - {get(self.ITEM_ID.format(self.get_current_directory_id()))['name']}
+        Current directory: {self.get_current_directory_id()} - {get(self.ITEM_ID.format(self.get_current_directory_id())).name}
         Current path: {self.get_directory_parents_string()}
         Current directory contents: {self.get_directory_contents()}
         """
@@ -112,7 +106,7 @@ class Explorer(object):
         for id in element_ids:
             element = get(self.ITEM_ID.format(id))
             elements.append(get(self.ITEM_ID.format(id)))
-        add(self.DIRECTORY_LIST.format(directory_id), [e['id'] for e in elements])
+        add(self.DIRECTORY_LIST.format(directory_id), [e.id for e in elements])
         return elements
 
     def get_item_by_name(self, name, directory_id=None):
@@ -120,7 +114,7 @@ class Explorer(object):
             directory_id = self.get_current_directory_id()
         contents = self.get_directory_contents(directory_id)
         for item in contents:
-            if item['name'] == name:
+            if item.name == name:
                 return item
         raise ItemNotFoundException(name=name)
 
@@ -130,16 +124,16 @@ class Explorer(object):
         family = [directory_id]
         while True:
             directory = get(self.ITEM_ID.format(directory_id))
-            if directory['directory_id'] is None:
+            if directory.directory_id is None:
                 break
-            family = [directory['directory_id']] + family
-            directory_id = directory['directory_id']
+            family = [directory.directory_id] + family
+            directory_id = directory.directory_id
         return family
 
     def get_directory_parents_string(self):
         path = ''
         for directory_id in self.current_path:
-            path = f"{path}/{get(self.ITEM_ID.format(directory_id))['name']}"
+            path = f"{path}/{get(self.ITEM_ID.format(directory_id)).name}"
         return path
 
     def go_to_directory(self, directory_id):
@@ -152,24 +146,24 @@ class Explorer(object):
 
         contents = self.get_directory_contents(parent_directory_id)
         for element in contents:
-            if element['name'] == name:
+            if element.name == name:
                 LOGGER.warning(f'{name} already exists in this directory')
                 return
 
-        dir_dict = {
+        dir_fs_item = FsItem({
             'id': directory_id,
             'name': name,
             'directory_id': parent_directory_id,
             'size': None,
             'i_type': 'd'
-        }
-        add(self.ITEM_ID.format(directory_id), dir_dict)
+        })
+        add(self.ITEM_ID.format(directory_id), dir_fs_item)
         add(self.DIRECTORY_LIST.format(directory_id), [])
         parent_list = get(self.DIRECTORY_LIST.format(parent_directory_id))
         add(self.DIRECTORY_LIST.format(parent_directory_id), parent_list + [directory_id])
         if parent_directory_id == self.get_current_directory_id():  # So that the directory appears
             self.go_to_directory(parent_directory_id)
-        return dir_dict
+        return dir_fs_item
 
     def add_file(self, file_id, name, size, directory_id=None):
         if directory_id is None:
@@ -177,36 +171,36 @@ class Explorer(object):
 
         contents = self.get_directory_contents(directory_id)
         for element in contents:
-            if element['name'] == name:
+            if element.name == name:
                 LOGGER.warning(f'{name} already exists in this directory')
                 return
 
-        file_dict = {
+        file_fs_item = FsItem({
             'id': file_id,
             'name': name,
             'directory_id': directory_id,
             'size': size,
             'i_type': 'f'
-        }
-        add(self.ITEM_ID.format(file_id), file_dict)
+        })
+        add(self.ITEM_ID.format(file_id), file_fs_item)
         directory_list = get(self.DIRECTORY_LIST.format(directory_id))
         add(self.DIRECTORY_LIST.format(directory_id), directory_list + [file_id])
         if directory_id == self.get_current_directory_id():  # So that the file appears
             self.go_to_directory(directory_id)
-        return file_dict
+        return file_fs_item
 
     def delete_item(self, item_id, is_recursed=False):
         item = get(self.ITEM_ID.format(item_id))
         LOGGER.debug(f' Delete {item_id} = {item}')
 
-        if item['i_type'] == 'd':
-            LOGGER.debug(f' {item["name"]} is directory')
+        if item.i_type == 'd':
+            LOGGER.debug(f' {item.name} is directory')
             item_ids = get(self.DIRECTORY_LIST.format(item_id))
-            LOGGER.debug(f' {item["name"]} contents {item_ids}')
+            LOGGER.debug(f' {item.name} contents {item_ids}')
             for each in item_ids:
                 element = get(self.ITEM_ID.format(each))
                 LOGGER.debug(f'     {each} = {element}')
-                if element['i_type'] == 'd':
+                if element.i_type == 'd':
                     LOGGER.debug(f'     {each} is directory, recursion...')
                     self.delete_item(each, True)
                     LOGGER.debug(f'     {each} recursion end !!!')
@@ -214,11 +208,11 @@ class Explorer(object):
                     LOGGER.debug(f'     {each} dir delete list')
                 delete(self.ITEM_ID.format(each))
                 LOGGER.debug(f'     {each} delete item')
-            delete(self.DIRECTORY_LIST.format(item['id']))
+            delete(self.DIRECTORY_LIST.format(item.id))
 
         if not is_recursed:
             LOGGER.debug(f'     No more recurion !!!')
-            parent_directory_id = item['directory_id']
+            parent_directory_id = item.directory_id
             LOGGER.debug(f'     Parent directory_id = {parent_directory_id}')
             delete(self.ITEM_ID.format(item_id))
             LOGGER.debug(f'     Item deleted')

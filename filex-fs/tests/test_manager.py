@@ -85,7 +85,7 @@ def test__add_directory(explorer):
 def test__summary(explorer):
     explorer.add_directory('dir1')
     explorer.add_file('file1', 'filename', 42)
-    assert explorer.summary() == "\n        Explorer for #000\n        Current directory: / - \n        Current path: /\n        Current directory contents: [{'id': 'uuid0000', 'name': 'dir1', 'directory_id': '/', 'size': None, 'i_type': 'd'}, {'id': 'file1', 'name': 'filename', 'directory_id': '/', 'size': 42, 'i_type': 'f'}]\n        "
+    assert explorer.summary() == "\n        Explorer for #000\n        Current directory: / - \n        Current path: /\n        Current directory contents: [<FsItem {'id'=uuid0000, 'name'=dir1, 'directory_id'=/, 'size'=None, 'i_type'=d}>, <FsItem {'id'=file1, 'name'=filename, 'directory_id'=/, 'size'=42, 'i_type'=f}>]\n        "
 
 
 def test__get_directory_parents(explorer):
@@ -94,19 +94,19 @@ def test__get_directory_parents(explorer):
             explorer.add_directory('dir3',
                 explorer.add_directory('dir2',
                     explorer.add_directory('dir1'
-                    )['id']
-                )['id']
-            )['id']
-        )['id']
+                    ).id
+                ).id
+            ).id
+        ).id
     )
-    explorer.go_to_directory(nested_dir['id'])
-    assert explorer.get_directory_parents(nested_dir['id']) == ['/', 'uuid0000', 'uuid0001', 'uuid0002', 'uuid0003', 'uuid0004']
+    explorer.go_to_directory(nested_dir.id)
+    assert explorer.get_directory_parents(nested_dir.id) == ['/', 'uuid0000', 'uuid0001', 'uuid0002', 'uuid0003', 'uuid0004']
     assert explorer.get_directory_parents() == ['/', 'uuid0000', 'uuid0001', 'uuid0002', 'uuid0003', 'uuid0004']
 
 
 def test__add_file(explorer):
     explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 1)
-    explorer.go_to_directory(explorer.add_directory('dir1')['id'])
+    explorer.go_to_directory(explorer.add_directory('dir1').id)
     explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 2)
     explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 3, '/')
     explorer.add_file(redis_mock._next_uuid(), 'uuid0001', 1, '/')
@@ -122,12 +122,12 @@ def test__add_file(explorer):
 
 
 def test__delete(explorer):
-    f1 = explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 1)['id']
-    d1 = explorer.add_directory('dir1')['id']
-    f2 = explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 2, d1)['id']
-    d2 = explorer.add_directory('dir2', d1)['id']
-    f3 = explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 3, d2)['id']
-    f4 = explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 4)['id']
+    f1 = explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 1).id
+    d1 = explorer.add_directory('dir1').id
+    f2 = explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 2, d1).id
+    d2 = explorer.add_directory('dir2', d1).id
+    f3 = explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 3, d2).id
+    f4 = explorer.add_file(redis_mock._next_uuid(), redis_mock._next_uuid(), 4).id
     explorer.delete_item(f1)
     explorer.delete_item(d1)
 
@@ -138,10 +138,9 @@ def test__delete(explorer):
 
 
 def test__get_item_by_name(explorer):
-    import ipdb; ipdb.set_trace()
     explorer.add_directory('dir1')
     explorer.add_directory('dir2')
-    assert explorer.get_item_by_name('dir1')['name'] == 'dir1'
-    explorer.get_item_by_name('dir2', '/')['name'] == 'dir2'
+    assert explorer.get_item_by_name('dir1').name == 'dir1'
+    explorer.get_item_by_name('dir2', '/').name == 'dir2'
     with pytest.raises(ItemNotFoundException):
         explorer.get_item_by_name('dir3')
