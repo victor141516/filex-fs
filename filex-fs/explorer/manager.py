@@ -31,14 +31,20 @@ def uuid():
     return str(uuid_pack.uuid1())[:8]
 
 
+class ItemNotFoundException(Exception):
+    def __init__(self, **kwargs):
+        super(ItemNotFoundException, self).__init__()
+        self.data = kwargs
+
+
 class FsItem(object):
     def __init__(self, data):
-        super(File, self).__init__()
-        self.id = data['id']
-        self.name = data['name']
-        self.directory_id = data['directory_id']
-        self.size = data['size']
-        self.i_type = data['i_type']  # d (directory), f (file), l (link)
+        super(FsItem, self).__init__()
+        self.id = data.get('id')
+        self.name = data.get('name')
+        self.directory_id = data.get('directory_id')
+        self.size = data.get('size')
+        self.i_type = data.get('i_type')  # d (directory), f (file), l (link)
 
     def __iter__(self):
         iters = dict((x, y) for x, y in File.__dict__.items() if x[:2] != '__')
@@ -55,12 +61,18 @@ class FsItem(object):
 
     def to_dict(self):
         return {
-            'id': data['id'],
-            'name': data['name'],
-            'directory_id': data['directory_id'],
-            'size': data['size'],
-            'i_type': data['i_type']
+            'id': self.id,
+            'name': self.name,
+            'directory_id': self.directory_id,
+            'size': self.size,
+            'i_type': self.i_type
         }
+
+    def to_json(self):
+        return json.dumps(self.to_dict())
+
+    def __repr__(self):
+        return f"<FsItem {{'id'={self.id}, 'name'={self.name}, 'directory_id'={self.directory_id}, 'size'={self.size}, 'i_type'={self.i_type}}}>"
 
 
 class Explorer(object):
@@ -80,29 +92,6 @@ class Explorer(object):
         if get(self.DIRECTORY_LIST.format('/')) is None:
             add(self.DIRECTORY_LIST.format('/'), [])
         self.current_path = ['/']
-
-    @property
-    def LS(self):
-        contents = self.get_directory_contents()
-        for item in contents:
-            print(f'{item["i_type"]} {item["name"]}')
-
-    @property
-    def PWD(self):
-        print(self.get_directory_parents_string())
-
-    def CD(self, directory_name):
-        item = self.get_item_by_name(directory_name)
-        if item['i_type'] != 'd':
-            print(f'{directory_name} is not a directory')
-        else:
-            self.go_to_directory(item['id'])
-
-    def MKDIR(self, name):
-        self.add_directory(name)
-
-    def TOUCH(self, name):
-        self.add_file(uuid(), name, 1)
 
     def summary(self):
         return f"""
@@ -133,7 +122,7 @@ class Explorer(object):
         for item in contents:
             if item['name'] == name:
                 return item
-        raise Exception  # ItemNotFoundException
+        raise ItemNotFoundException(name=name)
 
     def get_directory_parents(self, directory_id=None):
         if directory_id is None:

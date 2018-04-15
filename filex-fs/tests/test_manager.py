@@ -42,7 +42,7 @@ class MockRedis(object):
 redis_mock = MockRedis()
 when(redis).StrictRedis(...).thenReturn(redis_mock)
 patch(uuid_pack.uuid1, redis_mock._next_uuid)
-from explorer.manager import (Explorer, cache)
+from explorer.manager import (Explorer, cache, ItemNotFoundException)
 
 
 @pytest.fixture
@@ -135,3 +135,13 @@ def test__delete(explorer):
     assert json.loads(redis_mock.elements['000#/']) == {'id': '/', 'name': '', 'directory_id': None, 'size': None, 'i_type': 'd'}
     assert json.loads(redis_mock.elements['000#d_list-/']) == ['uuid0008']
     assert json.loads(redis_mock.elements['000#uuid0008']) == {'id': 'uuid0008', 'name': 'uuid0009', 'directory_id': '/', 'size': 4, 'i_type': 'f'}
+
+
+def test__get_item_by_name(explorer):
+    import ipdb; ipdb.set_trace()
+    explorer.add_directory('dir1')
+    explorer.add_directory('dir2')
+    assert explorer.get_item_by_name('dir1')['name'] == 'dir1'
+    explorer.get_item_by_name('dir2', '/')['name'] == 'dir2'
+    with pytest.raises(ItemNotFoundException):
+        explorer.get_item_by_name('dir3')
